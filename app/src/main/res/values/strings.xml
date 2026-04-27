@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">AppOpt Manager</string>
+    
+    <!-- Root Permission Strings -->
+    <string name="root_permission_denied_title">未获得Root权限</string>
+    <string name="root_permission_denied_message">此应用需要Root权限才能正常工作。请确保您的设备已正确Root，并授予本应用Root权限。</string>
+    <string name="root_permission_retry">重试权限检查</string>
+    <string name="root_permission_system_access">系统级访问权限</string>
+    <string name="root_permission_system_access_desc">需要修改系统配置文件</string>
+    <string name="root_permission_root_execution">Root执行权限</string>
+    <string name="root_permission_root_execution_desc">需要以超级用户身份运行命令</string>
+    <string name="root_permission_hint">提示：如果设备已Root但仍显示此页面，请尝试重启设备或重新授权Root权限</string>
+</resources>
