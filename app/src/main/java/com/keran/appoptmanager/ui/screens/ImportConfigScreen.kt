@@ -212,10 +212,10 @@ fun ImportConfigScreen(
                 ) {
                     Button(
                         onClick = {
-                            val selectedDiffs = filterSelectedDiffs(importUiState, selectedPackages)
                             val currentConfigs = viewModel.uiState.value
                             importViewModel.applyImport(
                                 currentConfigs = currentConfigs,
+                                selectedPackages = selectedPackages,
                                 onConfigUpdated = { updatedConfigs ->
                                     viewModel.updateAllConfigs(updatedConfigs)
                                 },
@@ -624,9 +624,3 @@ internal fun countSelectedPackages(diffs: List<ImportDiff>, selectedPackages: Se
     return selectedPackages.count { it in allPackages }
 }
 
-internal fun filterSelectedDiffs(diffs: List<ImportDiff>, selectedPackages: Set<String>): List<ImportDiff> {
-    if (selectedPackages.isEmpty()) return emptyList()
-    return diffs.filter { diff ->
-        diff.installedApp.packageName in selectedPackages
-    }
-}

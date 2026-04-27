@@ -46,9 +46,9 @@ class InstalledAppRepository(private val context: Context) {
             val pm = context.packageManager
             val packages = pm.getInstalledPackages(0)
 
-            packages.mapNotNull { packageInfo ->
+            val installed = packages.mapNotNull { packageInfo ->
                 val appInfo = packageInfo.applicationInfo ?: return@mapNotNull null
-                
+
                 val appName = appInfo.loadLabel(pm).toString()
                 val packageName = packageInfo.packageName
                 appNameCache[packageName] = appName
@@ -56,22 +56,16 @@ class InstalledAppRepository(private val context: Context) {
                 val isSystem = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
                 val isUpdatedSystem = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
 
-                val iconFile = File(iconCacheDir, "$packageName.png")
-                if (!iconFile.exists()) {
-                    try {
-                        val drawable = appInfo.loadIcon(pm)
-                        saveIconToCache(drawable, iconFile)
-                    } catch (_: Exception) {
-                    }
-                }
-                
                 InstalledApp(
                     name = appName,
                     packageName = packageName,
-                    iconPath = iconFile.absolutePath,
+                    iconPath = File(iconCacheDir, "$packageName.png").absolutePath,
                     isSystem = (isSystem && !isUpdatedSystem)
                 )
             }.sortedBy { it.name }
+
+            preCacheIconsParallel(installed.map { it.packageName })
+            installed
         }
     }
 

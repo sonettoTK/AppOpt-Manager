@@ -10,15 +10,15 @@ import java.io.File
 class AppConfigRepository(private val context: Context) {
 
     suspend fun loadConfig(path: String): List<AppConfig> = withIoContext {
-        val result = ShellUtils.execRootCmd("cat '$path'")
+        val result = ShellUtils.execRootCmd("cat ${shellQuote(path)}")
         if (result.success) ConfigParser.parse(result.output) else emptyList()
     }
 
     suspend fun checkFileExists(path: String): Boolean = withIoContext {
-        val escaped = path.replace("'", "'\\''")
+        val quoted = shellQuote(path)
         val cmd =
-            "if [ -e '$escaped' ]; then echo 1; " +
-                "elif ls '$escaped' >/dev/null 2>&1; then echo 1; " +
+            "if [ -e $quoted ]; then echo 1; " +
+                "elif ls $quoted >/dev/null 2>&1; then echo 1; " +
                 "else echo 0; fi"
         val result = ShellUtils.execRootCmd(cmd)
         result.output.trim() == "1"
@@ -45,9 +45,14 @@ class AppConfigRepository(private val context: Context) {
     }
 
     private fun copyFileWithRootPermission(sourcePath: String, destPath: String): Boolean {
-        val result = ShellUtils.execRootCmd("cp '$sourcePath' '$destPath' && chmod 644 '$destPath'")
+        val src = shellQuote(sourcePath)
+        val dst = shellQuote(destPath)
+        val result = ShellUtils.execRootCmd("cp $src $dst && chmod 644 $dst")
         return result.success
     }
+
+    private fun shellQuote(value: String): String =
+        "'" + value.replace("'", "'\\''") + "'"
 
     suspend fun exportConfigToCache(configs: List<AppConfig>): File? = withIoContext {
         runCatching {

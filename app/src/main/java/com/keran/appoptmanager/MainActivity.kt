@@ -20,7 +20,6 @@ import com.keran.appoptmanager.viewmodel.sub.ImportViewModel
 import com.keran.appoptmanager.viewmodel.sub.SelectionViewModel
 import com.keran.appoptmanager.viewmodel.sub.SettingsViewModel
 import com.keran.appoptmanager.viewmodel.sub.UpdateViewModel
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {

@@ -105,7 +105,7 @@ fun AppNavigation(
     val allProcessNames by viewModel.allProcessNames.collectAsStateWithLifecycle()
     val allThreadNames by viewModel.allThreadNames.collectAsStateWithLifecycle()
     val selectionMode by selectionViewModel.selectionMode.collectAsStateWithLifecycle()
-    val selectedAppIds by selectionViewModel.selectedAppIds.collectAsStateWithLifecycle()
+    val selectedPackages by selectionViewModel.selectedPackages.collectAsStateWithLifecycle()
     val backgroundImagePath by settingsViewModel.backgroundImagePath.collectAsStateWithLifecycle()
     val uiOpacity by settingsViewModel.uiOpacity.collectAsStateWithLifecycle()
     val importUiState by importViewModel.importUiState.collectAsStateWithLifecycle()
@@ -130,9 +130,9 @@ fun AppNavigation(
     val isDownloading by updateViewModel.isDownloading.collectAsStateWithLifecycle()
     val downloadProgress by updateViewModel.downloadProgress.collectAsStateWithLifecycle()
 
-    if (showUpdateDialog && updateInfo != null) {
+    updateInfo?.takeIf { showUpdateDialog }?.let { info ->
         UpdateDialog(
-            info = updateInfo!!,
+            info = info,
             isDownloading = isDownloading,
             downloadProgress = downloadProgress,
             onDismiss = { updateViewModel.dismissUpdateDialog() },
@@ -182,7 +182,7 @@ fun AppNavigation(
         }
     }
 
-BackHandler(enabled = currentScreen != Screen.List) {
+    BackHandler(enabled = currentScreen != Screen.List) {
         currentScreen = when (currentScreen) {
             Screen.Settings -> Screen.List
             Screen.AppPicker -> Screen.List
@@ -202,26 +202,26 @@ BackHandler(enabled = currentScreen != Screen.List) {
                 topBar = {
                     if (selectionMode) {
                         val uiState by viewModel.filteredUiState.collectAsStateWithLifecycle()
-                        val isAllSelected = selectedAppIds.size == uiState.size && uiState.isNotEmpty()
-                        
+                        val isAllSelected = selectedPackages.size == uiState.size && uiState.isNotEmpty()
+
                         SelectionHeader(
-                            selectedCount = selectedAppIds.size,
+                            selectedCount = selectedPackages.size,
                             isAllSelected = isAllSelected,
                             onExitSelectionMode = { selectionViewModel.exitSelectionMode() },
-                            onToggleSelectAll = { 
-                                if (isAllSelected) selectionViewModel.deselectAll() else selectionViewModel.selectAll(uiState.map { it.id }.toSet())
+                            onToggleSelectAll = {
+                                if (isAllSelected) selectionViewModel.deselectAll() else selectionViewModel.selectAll(uiState.map { it.packageName }.toSet())
                             },
-                            onInvertSelection = { selectionViewModel.invertSelection(uiState.map { it.id }.toSet()) },
-                            onBatchEnableRules = { 
-                                viewModel.setRulesEnabledForSelectedApps(selectedAppIds, true)
+                            onInvertSelection = { selectionViewModel.invertSelection(uiState.map { it.packageName }.toSet()) },
+                            onBatchEnableRules = {
+                                viewModel.setRulesEnabledForSelectedApps(selectedPackages, true)
                                 selectionViewModel.exitSelectionMode()
                             },
-                            onBatchDisableRules = { 
-                                viewModel.setRulesEnabledForSelectedApps(selectedAppIds, false)
+                            onBatchDisableRules = {
+                                viewModel.setRulesEnabledForSelectedApps(selectedPackages, false)
                                 selectionViewModel.exitSelectionMode()
                             },
-                            onDeleteSelected = { 
-                                viewModel.deleteSelectedApps(selectedAppIds)
+                            onDeleteSelected = {
+                                viewModel.deleteSelectedApps(selectedPackages)
                                 selectionViewModel.exitSelectionMode()
                             }
                         )
@@ -322,10 +322,13 @@ BackHandler(enabled = currentScreen != Screen.List) {
                         if (previousScreen == Screen.AppPicker) {
                             viewModel.addApp(context.app)
                         } else {
-                            viewModel.updateAppRules(
-                                viewModel.uiState.value.find { it.packageName == context.app.packageName }!!,
-                                rules
-                            )
+                            val existing = viewModel.uiState.value
+                                .find { it.packageName == context.app.packageName }
+                            if (existing != null) {
+                                viewModel.updateAppRules(existing, rules)
+                            } else {
+                                viewModel.addApp(context.app)
+                            }
                         }
                         currentScreen = Screen.List
                     }

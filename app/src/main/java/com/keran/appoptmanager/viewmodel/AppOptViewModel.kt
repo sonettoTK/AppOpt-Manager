@@ -17,6 +17,7 @@ import com.keran.appoptmanager.utils.DeepLinkManager
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +36,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** 应用启动阶段机：从检查 Root 到完全就绪 */
@@ -169,6 +172,7 @@ class AppOptViewModel(
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
     private var currentEffectivePath: String = SettingsRepository.DEFAULT_PATH
+    private val saveMutex = Mutex()
 
     private data class LoadRequest(
         val requestedPath: String,
@@ -194,39 +198,12 @@ class AppOptViewModel(
         viewModelScope.launch {
             combine(_configState, _packageLoadState) { configState, packageLoadState ->
                 configState to packageLoadState
-            }.collect { (_, packageLoadState) ->
-                if (packageLoadState == PackageLoadState.Failed) {
-                    _hasResolvedFilteredUiState.value = true
-                }
-            }
-        }
-
-        viewModelScope.launch {
-            combine(
-                _uiState,
-                debouncedSearchQuery,
-                installedPackages,
-                _packageLoadState,
-                _configState
-            ) { apps, query, installed, pkgState, configState ->
-                FilterResolutionSnapshot(
-                    apps = apps,
-                    query = query,
-                    installedPackages = installed,
-                    packageLoadState = pkgState,
-                    configState = configState
-                )
-            }.collect { snapshot ->
-                if (
-                    snapshot.configState == ConfigState.Loaded &&
-                    snapshot.packageLoadState == PackageLoadState.Loaded
-                ) {
-                    filterAndSortApps(
-                        apps = snapshot.apps,
-                        query = snapshot.query,
-                        installedPackages = snapshot.installedPackages,
-                        packageLoadState = snapshot.packageLoadState
-                    )
+            }.collect { (configState, packageLoadState) ->
+                val resolved = packageLoadState == PackageLoadState.Failed ||
+                    (configState == ConfigState.Loaded && packageLoadState == PackageLoadState.Loaded) ||
+                    configState == ConfigState.Empty ||
+                    configState == ConfigState.FileNotFound
+                if (resolved) {
                     _hasResolvedFilteredUiState.value = true
                 }
             }
@@ -350,11 +327,13 @@ class AppOptViewModel(
 
     fun saveConfig() {
         viewModelScope.launch {
-            _isSaving.value = true
-            try {
-                appConfigRepository.saveConfig(currentEffectivePath, _uiState.value)
-            } finally {
-                _isSaving.value = false
+            saveMutex.withLock {
+                _isSaving.value = true
+                try {
+                    appConfigRepository.saveConfig(currentEffectivePath, _uiState.value)
+                } finally {
+                    _isSaving.value = false
+                }
             }
         }
     }
@@ -381,7 +360,6 @@ class AppOptViewModel(
 
     fun addApp(app: InstalledApp) {
         val newApp = AppConfig(
-            id = ConfigParser.generateStableId(app.packageName),
             packageName = app.packageName,
             enabled = true,
             rules = persistentListOf()
@@ -401,7 +379,7 @@ class AppOptViewModel(
         _uiState.update { currentList ->
             currentList.map { app ->
                 if (app.packageName == appConfig.packageName) {
-                    app.copy(rules = newRules.toImmutableList())
+                    app.copy(rules = newRules.toPersistentList())
                 } else {
                     app
                 }
@@ -418,13 +396,13 @@ class AppOptViewModel(
         saveConfig()
     }
 
-    fun toggleAppEnabled(id: Int, enabled: Boolean) {
+    fun toggleAppEnabled(packageName: String, enabled: Boolean) {
         _uiState.update { currentList ->
             currentList.map { app ->
-                if (app.id == id) {
+                if (app.packageName == packageName) {
                     app.copy(
                         enabled = enabled,
-                        rules = app.rules.map { it.copy(enabled = enabled) }.toImmutableList()
+                        rules = app.rules.map { it.copy(enabled = enabled) }.toPersistentList()
                     )
                 } else app
             }.toImmutableList()
@@ -437,13 +415,11 @@ class AppOptViewModel(
         _configState.value = if (newConfigs.isEmpty()) ConfigState.Empty else ConfigState.Loaded
     }
 
-    fun toggleRuleEnabled(appId: Int, ruleIndex: Int, enabled: Boolean) {
+    fun toggleRuleEnabled(packageName: String, ruleIndex: Int, enabled: Boolean) {
         _uiState.update { currentList ->
             currentList.map { app ->
-                if (app.id == appId) {
-                    val updatedRules = app.rules.mapIndexed { index, rule ->
-                        if (index == ruleIndex) rule.copy(enabled = enabled) else rule
-                    }.toImmutableList()
+                if (app.packageName == packageName && ruleIndex in app.rules.indices) {
+                    val updatedRules = app.rules.set(ruleIndex, app.rules[ruleIndex].copy(enabled = enabled))
                     app.copy(rules = updatedRules)
                 } else {
                     app
@@ -453,34 +429,31 @@ class AppOptViewModel(
         saveConfig()
     }
 
-    fun deleteSelectedApps(idsToDelete: Set<Int>) {
-        if (idsToDelete.isEmpty()) return
+    fun deleteSelectedApps(packagesToDelete: Set<String>) {
+        if (packagesToDelete.isEmpty()) return
 
         _uiState.update { currentList ->
-            currentList.filter { it.id !in idsToDelete }.toImmutableList()
+            currentList.filter { it.packageName !in packagesToDelete }.toImmutableList()
         }
 
         updateConfigStateAfterDelete()
         saveConfig()
     }
 
-    fun updateAppName(appId: Int, newName: String) {
+    fun updateAppName(packageName: String, newName: String) {
         _uiState.update { currentList ->
             currentList.map { app ->
-                if (app.id == appId) app.copy(alias = newName) else app
+                if (app.packageName == packageName) app.copy(alias = newName) else app
             }.toImmutableList()
         }
         saveConfig()
     }
 
-    fun updateRule(appId: Int, ruleIndex: Int, newRule: Rule) {
+    fun updateRule(packageName: String, ruleIndex: Int, newRule: Rule) {
         _uiState.update { currentList ->
             currentList.map { app ->
-                if (app.id == appId) {
-                    val updatedRules = app.rules.mapIndexed { index, rule ->
-                        if (index == ruleIndex) newRule else rule
-                    }.toImmutableList()
-                    app.copy(rules = updatedRules)
+                if (app.packageName == packageName && ruleIndex in app.rules.indices) {
+                    app.copy(rules = app.rules.set(ruleIndex, newRule))
                 } else {
                     app
                 }
@@ -489,12 +462,12 @@ class AppOptViewModel(
         saveConfig()
     }
 
-    fun deleteRule(appId: Int, ruleIndex: Int) {
+    fun deleteRule(packageName: String, ruleIndex: Int) {
         _uiState.update { currentList ->
             currentList.map { app ->
-                if (app.id == appId) {
+                if (app.packageName == packageName) {
                     if (ruleIndex !in app.rules.indices) return@map app
-                    val updatedRules = app.rules.toMutableList().apply { removeAt(ruleIndex) }.toImmutableList()
+                    val updatedRules = app.rules.removeAt(ruleIndex)
                     app.copy(rules = updatedRules)
                 } else {
                     app
@@ -504,29 +477,29 @@ class AppOptViewModel(
         saveConfig()
     }
 
-    fun deleteApp(appId: Int) {
+    fun deleteApp(packageName: String) {
         _uiState.update { currentList ->
-            currentList.filter { it.id != appId }.toImmutableList()
+            currentList.filter { it.packageName != packageName }.toImmutableList()
         }
 
         updateConfigStateAfterDelete()
         saveConfig()
     }
 
-    fun setRulesEnabledForSelectedApps(ids: Set<Int>, enabled: Boolean) {
-        if (ids.isEmpty()) return
+    fun setRulesEnabledForSelectedApps(packages: Set<String>, enabled: Boolean) {
+        if (packages.isEmpty()) return
 
         var anyChange = false
         _uiState.update { currentList ->
             currentList.map { app ->
-                if (app.id !in ids) return@map app
+                if (app.packageName !in packages) return@map app
                 val unchanged =
                     app.enabled == enabled && app.rules.all { it.enabled == enabled }
                 if (unchanged) return@map app
                 anyChange = true
                 app.copy(
                     enabled = enabled,
-                    rules = app.rules.map { it.copy(enabled = enabled) }.toImmutableList()
+                    rules = app.rules.map { it.copy(enabled = enabled) }.toPersistentList()
                 )
             }.toImmutableList()
         }
@@ -589,10 +562,3 @@ class AppOptViewModel(
     }
 }
 
-private data class FilterResolutionSnapshot(
-    val apps: ImmutableList<AppConfig>,
-    val query: String,
-    val installedPackages: Set<String>,
-    val packageLoadState: PackageLoadState,
-    val configState: ConfigState
-)

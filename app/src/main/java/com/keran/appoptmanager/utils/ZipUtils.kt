@@ -6,7 +6,7 @@ import java.io.BufferedReader
 import java.util.zip.ZipInputStream
 
 object ZipUtils {
-    private const val MAX_FILE_SIZE = 8 * 1024 * 1024
+    private const val MAX_CHARS = 8 * 1024 * 1024
     private const val MAX_LINES = 1000
     private const val BUFFER_SIZE = 8192
 
@@ -50,7 +50,7 @@ object ZipUtils {
         var totalRead = 0
         var charsRead: Int
 
-        while (reader.read(buffer).also { charsRead = it } != -1 && totalRead < MAX_FILE_SIZE) {
+        while (reader.read(buffer).also { charsRead = it } != -1 && totalRead < MAX_CHARS) {
             append(buffer, 0, charsRead)
             totalRead += charsRead
         }
@@ -67,7 +67,7 @@ object ZipUtils {
         var lineCount = 0
         var stoppedEarly = false
 
-        while (lineCount < MAX_LINES && totalRead < MAX_FILE_SIZE) {
+        while (lineCount < MAX_LINES && totalRead < MAX_CHARS) {
             val line = reader.readLine() ?: break
             sb.appendLine(line)
             totalRead += line.length + 1

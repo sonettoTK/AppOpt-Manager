@@ -9,12 +9,14 @@ object ShellUtils {
 
     fun checkRootPermission(): Boolean {
         return try {
-            val result = execSingleRootCmd("id")
+            val result = execSingleRootCmd("id", timeoutMs = ROOT_CHECK_TIMEOUT_MS)
             result.output.contains("uid=0")
         } catch (e: Exception) {
             false
         }
     }
+
+    private const val ROOT_CHECK_TIMEOUT_MS: Long = 5_000L
 
     fun execRootCmd(cmd: String, timeoutMs: Long? = null): ShellResult = execSingleRootCmd(cmd, timeoutMs)
 

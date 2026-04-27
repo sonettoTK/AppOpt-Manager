@@ -19,14 +19,14 @@ import com.keran.appoptmanager.viewmodel.sub.ImportViewModel
 import com.keran.appoptmanager.viewmodel.sub.SelectionViewModel
 import com.keran.appoptmanager.viewmodel.sub.SettingsViewModel
 import com.keran.appoptmanager.viewmodel.sub.UpdateViewModel
-import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 
 enum class Screen { List, Settings, AppPicker, RuleConfig, ImportConfig, ToolbarSort }
 
 data class RuleConfigContext(
     val app: InstalledApp,
-    val initialRules: ImmutableList<Rule> = persistentListOf()
+    val initialRules: PersistentList<Rule> = persistentListOf()
 )
 
 @Composable

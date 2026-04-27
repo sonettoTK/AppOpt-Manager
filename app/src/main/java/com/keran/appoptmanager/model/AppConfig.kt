@@ -1,7 +1,7 @@
 package com.keran.appoptmanager.model
 
 import androidx.compose.runtime.Immutable
-import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.PersistentList
 
 /**
  * 可应用于应用程序的规则类型。
@@ -41,17 +41,15 @@ data class RuleKey(val type: RuleType, val target: String)
 /**
  * 带有CPU亲和性规则的应用程序配置。
  *
- * @property id 配置的唯一标识符
- * @property packageName Android包名
+ * @property packageName Android包名（同时作为唯一标识符）
  * @property enabled 应用程序配置是否激活
  * @property rules 此应用程序的CPU亲和性规则列表
  * @property alias 用户通过编辑功能设置的显示名称。null 时使用系统原始名或包名
  */
 @Immutable
 data class AppConfig(
-    val id: Int,
     val packageName: String,
     val enabled: Boolean,
-    val rules: ImmutableList<Rule>,
+    val rules: PersistentList<Rule>,
     val alias: String? = null
 )

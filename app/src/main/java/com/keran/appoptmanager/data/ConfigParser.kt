@@ -3,7 +3,7 @@ package com.keran.appoptmanager.data
 import com.keran.appoptmanager.model.AppConfig
 import com.keran.appoptmanager.model.Rule
 import com.keran.appoptmanager.model.RuleType
-import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toPersistentList
 import java.util.regex.Pattern
 
 object ConfigParser {
@@ -12,13 +12,10 @@ object ConfigParser {
     private val VALID_EXTENSIONS = setOf("conf", "txt", "prop", "cfg", "config")
     private const val DISABLED_PREFIX = "!"
     private const val COMMENT_PREFIX = "#"
+    private const val ALIAS_DIRECTIVE_PREFIX = "#@alias:"
     private const val MAIN_PROCESS_LABEL = "主进程"
     private const val TARGET_SEPARATOR = ":"
     private const val MIN_FORMATS_FOR_VALIDATION = 2
-
-    internal fun generateStableId(packageName: String): Int {
-        return packageName.hashCode().takeIf { it != 0 } ?: 1
-    }
 
     enum class ConfigFormat {
         MAIN,
@@ -87,38 +84,76 @@ object ConfigParser {
 
     fun parse(content: String): List<AppConfig> {
         val appRules = LinkedHashMap<String, MutableList<Rule>>()
+        val aliases = LinkedHashMap<String, String>()
+        var pendingAlias: String? = null
 
         content.lineSequence()
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .forEach { line ->
-                if (line.startsWith(COMMENT_PREFIX)) return@forEach
-                processRuleLine(line, appRules)
+                if (line.startsWith(ALIAS_DIRECTIVE_PREFIX)) {
+                    val (pkg, alias) = parseAliasDirective(line) ?: return@forEach
+                    if (pkg != null) {
+                        aliases[pkg] = alias
+                    } else {
+                        pendingAlias = alias
+                    }
+                    return@forEach
+                }
+                if (line.startsWith(COMMENT_PREFIX)) {
+                    pendingAlias = null
+                    return@forEach
+                }
+
+                val ruleInfo = processRuleLine(line, appRules) ?: run {
+                    pendingAlias = null
+                    return@forEach
+                }
+                pendingAlias?.let { alias ->
+                    aliases.putIfAbsent(ruleInfo.packageName, alias)
+                    pendingAlias = null
+                }
             }
 
-        return buildAppConfigs(appRules)
+        return buildAppConfigs(appRules, aliases)
+    }
+
+    private fun parseAliasDirective(line: String): Pair<String?, String>? {
+        val payload = line.removePrefix(ALIAS_DIRECTIVE_PREFIX).trim()
+        if (payload.isEmpty()) return null
+
+        val separatorIndex = payload.indexOf('=')
+        return if (separatorIndex > 0) {
+            val pkg = payload.substring(0, separatorIndex).trim()
+            val alias = payload.substring(separatorIndex + 1).trim()
+            if (pkg.isEmpty() || alias.isEmpty()) null else pkg to alias
+        } else {
+            null to payload
+        }
     }
 
     private fun processRuleLine(
         line: String,
         appRules: MutableMap<String, MutableList<Rule>>
-    ) {
+    ): RuleInfo? {
         val (isEnabled, parseLine) = extractEnabledState(line)
-        val ruleInfo = parseRuleLine(parseLine) ?: return
+        val ruleInfo = parseRuleLine(parseLine) ?: return null
 
         appRules.getOrPut(ruleInfo.packageName) { mutableListOf() }
             .add(Rule(ruleInfo.target, ruleInfo.type, ruleInfo.cores, isEnabled))
+        return ruleInfo
     }
 
     private fun buildAppConfigs(
-        appRules: Map<String, List<Rule>>
+        appRules: Map<String, List<Rule>>,
+        aliases: Map<String, String>
     ): List<AppConfig> {
         return appRules.map { (packageName, rules) ->
             AppConfig(
-                id = generateStableId(packageName),
                 packageName = packageName,
                 enabled = true,
-                rules = rules.toImmutableList()
+                rules = rules.toPersistentList(),
+                alias = aliases[packageName]
             )
         }
     }
@@ -167,6 +202,7 @@ object ConfigParser {
             val alias = app.alias?.trim()?.ifEmpty { null }
             if (alias != null) {
                 appendLine("$COMMENT_PREFIX $alias")
+                appendLine("$ALIAS_DIRECTIVE_PREFIX${app.packageName}=$alias")
             }
 
             for (rule in app.rules) {

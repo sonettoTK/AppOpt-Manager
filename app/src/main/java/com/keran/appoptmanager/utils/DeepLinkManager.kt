@@ -5,7 +5,7 @@ import android.util.Base64
 import com.keran.appoptmanager.model.AppConfig
 import com.keran.appoptmanager.model.Rule
 import com.keran.appoptmanager.model.RuleType
-import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -27,7 +27,6 @@ object DeepLinkManager {
 
     @Serializable
     private data class AppConfigDto(
-        val id: Int,
         val packageName: String,
         val enabled: Boolean,
         val alias: String? = null,
@@ -95,7 +94,6 @@ object DeepLinkManager {
 
     private fun AppConfig.toDto(): AppConfigDto {
         return AppConfigDto(
-            id = id,
             packageName = packageName,
             enabled = enabled,
             alias = alias,
@@ -114,10 +112,9 @@ object DeepLinkManager {
 
     private fun AppConfigDto.toDomain(): AppConfig {
         return AppConfig(
-            id = id,
             packageName = packageName,
             enabled = enabled,
-            rules = rules.map { it.toDomain() }.toImmutableList(),
+            rules = rules.map { it.toDomain() }.toPersistentList(),
             alias = alias
         )
     }

@@ -37,12 +37,15 @@ import androidx.compose.ui.res.painterResource
 import com.keran.appoptmanager.R
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -81,29 +84,36 @@ fun SettingsScreen(
 
     var pathInput by remember { mutableStateOf(currentPath ?: "") }
 
-    val initialPath = remember { currentPath }
-
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     fun handleSelectedImage(uri: Uri?) {
-        uri?.let {
-            try {
-                if (backgroundImagePath.isNotEmpty()) {
-                    val oldFile = java.io.File(backgroundImagePath)
-                    if (oldFile.exists() && oldFile.name.startsWith("custom_bg_image")) {
-                        oldFile.delete()
+        val targetUri = uri ?: return
+        val previousBackground = backgroundImagePath
+        coroutineScope.launch {
+            val savedPath = withContext(Dispatchers.IO) {
+                runCatching {
+                    if (previousBackground.isNotEmpty()) {
+                        val oldFile = java.io.File(previousBackground)
+                        if (oldFile.exists() && oldFile.name.startsWith("custom_bg_image")) {
+                            oldFile.delete()
+                        }
                     }
-                }
 
-                val inputStream = context.contentResolver.openInputStream(it)
-                val destFile = java.io.File(context.filesDir, "custom_bg_image_${System.currentTimeMillis()}")
-                val outputStream = java.io.FileOutputStream(destFile)
-                inputStream?.copyTo(outputStream)
-                inputStream?.close()
-                outputStream.close()
-                settingsViewModel.setBackgroundImagePath(destFile.absolutePath)
-            } catch (e: Exception) {
-                e.printStackTrace()
+                    val destFile = java.io.File(
+                        context.filesDir,
+                        "custom_bg_image_${System.currentTimeMillis()}"
+                    )
+                    context.contentResolver.openInputStream(targetUri)?.use { input ->
+                        java.io.FileOutputStream(destFile).use { output ->
+                            input.copyTo(output)
+                        }
+                    } ?: return@runCatching null
+                    destFile.absolutePath
+                }.getOrNull()
+            }
+            if (savedPath != null) {
+                settingsViewModel.setBackgroundImagePath(savedPath)
             }
         }
     }
@@ -120,17 +130,6 @@ fun SettingsScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         handleSelectedImage(uri)
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            val normalizedPath = pathInput.trim()
-            val finalPath: String? = normalizedPath.ifEmpty { null }
-            if (finalPath != initialPath) {
-                settingsViewModel.setConfigPath(finalPath)
-                viewModel.refreshConfig()
-            }
-        }
     }
 
     var previewOpacity by remember(uiOpacity) { mutableFloatStateOf(uiOpacity) }
@@ -398,10 +397,10 @@ fun SettingsScreen(
                                 .onFocusChanged { focusState ->
                                     if (!focusState.isFocused) {
                                         val normalizedPath = pathInput.trim()
-                                        if (normalizedPath.isEmpty()) {
-                                            settingsViewModel.setConfigPath(null)
-                                        } else if (normalizedPath != currentPath) {
-                                            settingsViewModel.setConfigPath(normalizedPath)
+                                        val newPath: String? = normalizedPath.ifEmpty { null }
+                                        if (newPath != currentPath) {
+                                            settingsViewModel.setConfigPath(newPath)
+                                            viewModel.refreshConfig()
                                         }
                                     }
                                 },

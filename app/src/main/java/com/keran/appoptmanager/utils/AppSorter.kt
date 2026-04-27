@@ -5,6 +5,7 @@ import net.sourceforge.pinyin4j.format.HanyuPinyinCaseType
 import net.sourceforge.pinyin4j.format.HanyuPinyinOutputFormat
 import net.sourceforge.pinyin4j.format.HanyuPinyinToneType
 import net.sourceforge.pinyin4j.format.HanyuPinyinVCharType
+import java.util.concurrent.ConcurrentHashMap
 
 object AppSorter {
 
@@ -18,9 +19,9 @@ object AppSorter {
     private const val CHINESE_RANGE_START = 0x4e00
     private const val CHINESE_RANGE_END = 0x9fa5
 
-    private val pinyinCache = mutableMapOf<String, String>()
-    private val initialCache = mutableMapOf<String, String>()
-    private val appInitialCache = mutableMapOf<String, String>()
+    private val pinyinCache = ConcurrentHashMap<String, String>()
+    private val initialCache = ConcurrentHashMap<String, String>()
+    private val appInitialCache = ConcurrentHashMap<String, String>()
 
     private enum class CharType(val priority: Int) {
         DIGIT(0),

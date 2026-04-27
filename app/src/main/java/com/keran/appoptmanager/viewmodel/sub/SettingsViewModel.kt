@@ -8,6 +8,8 @@ import com.keran.appoptmanager.model.ToolbarItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(
@@ -37,25 +39,17 @@ class SettingsViewModel(
     }
 
     private fun collectSettings() {
-        viewModelScope.launch {
-            settingsRepository.configPath.collect { path ->
-                _configPath.value = path
-            }
-        }
-        viewModelScope.launch { settingsRepository.autoSave.collect { _autoSave.value = it } }
-        viewModelScope.launch { settingsRepository.themeMode.collect { _themeMode.value = it } }
-        viewModelScope.launch { settingsRepository.backgroundImagePath.collect { _backgroundImagePath.value = it } }
-        viewModelScope.launch { settingsRepository.uiOpacity.collect { _uiOpacity.value = it } }
-        viewModelScope.launch { collectToolbarOrder() }
-    }
-
-    private suspend fun collectToolbarOrder() {
-        settingsRepository.toolbarOrder.collect { orderIds ->
+        settingsRepository.configPath.onEach { _configPath.value = it }.launchIn(viewModelScope)
+        settingsRepository.autoSave.onEach { _autoSave.value = it }.launchIn(viewModelScope)
+        settingsRepository.themeMode.onEach { _themeMode.value = it }.launchIn(viewModelScope)
+        settingsRepository.backgroundImagePath.onEach { _backgroundImagePath.value = it }.launchIn(viewModelScope)
+        settingsRepository.uiOpacity.onEach { _uiOpacity.value = it }.launchIn(viewModelScope)
+        settingsRepository.toolbarOrder.onEach { orderIds ->
             val items = orderIds.mapNotNull { ToolbarItem.fromId(it) }
             if (items.isNotEmpty()) {
                 _toolbarOrder.value = items
             }
-        }
+        }.launchIn(viewModelScope)
     }
 
     fun setConfigPath(path: String?) {

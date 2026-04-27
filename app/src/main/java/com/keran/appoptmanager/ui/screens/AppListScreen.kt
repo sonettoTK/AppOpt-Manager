@@ -92,7 +92,7 @@ fun AppListScreen(
     val allProcessNames by viewModel.allProcessNames.collectAsStateWithLifecycle()
     val allThreadNames by viewModel.allThreadNames.collectAsStateWithLifecycle()
     val selectionMode by selectionViewModel.selectionMode.collectAsStateWithLifecycle()
-    val selectedAppIds by selectionViewModel.selectedAppIds.collectAsStateWithLifecycle()
+    val selectedPackages by selectionViewModel.selectedPackages.collectAsStateWithLifecycle()
     val iconCacheVersion by viewModel.iconCacheVersion.collectAsStateWithLifecycle()
     val indexMap by viewModel.indexMap.collectAsStateWithLifecycle()
     
@@ -132,50 +132,50 @@ fun AppListScreen(
     
     var ruleToEdit by remember { mutableStateOf<Triple<AppConfig, Int, com.keran.appoptmanager.model.Rule>?>(null) }
     
-    if (appToEditName != null) {
+    appToEditName?.let { editingApp ->
         EditAppNameDialog(
             initialName = appToEditDisplayName,
             onDismiss = { appToEditName = null },
             onConfirm = { newName ->
-                viewModel.updateAppName(appToEditName!!.id, newName)
+                viewModel.updateAppName(editingApp.packageName, newName)
                 appToEditName = null
             }
         )
     }
 
-    if (ruleToEdit != null) {
+    ruleToEdit?.let { editing ->
         EditRuleDialog(
-            rule = ruleToEdit!!,
+            rule = editing,
             processSuggestions = allProcessNames,
             threadSuggestions = allThreadNames,
             onDismiss = { ruleToEdit = null },
             onConfirm = { updatedRule ->
-                val (app, index, _) = ruleToEdit!!
-                viewModel.updateRule(app.id, index, updatedRule)
+                val (app, index, _) = editing
+                viewModel.updateRule(app.packageName, index, updatedRule)
                 ruleToEdit = null
             }
         )
     }
 
-    if (ruleToDelete != null) {
+    ruleToDelete?.let { pending ->
         ConfirmationBottomSheet(
             title = "删除规则",
             message = "确定要删除这条规则吗？此操作不可撤销。",
             onConfirm = {
-                val (app, index) = ruleToDelete!!
-                viewModel.deleteRule(app.id, index)
+                val (app, index) = pending
+                viewModel.deleteRule(app.packageName, index)
                 ruleToDelete = null
             },
             onDismiss = { ruleToDelete = null }
         )
     }
 
-    if (appToDelete != null) {
+    appToDelete?.let { pending ->
         ConfirmationBottomSheet(
             title = "删除应用配置",
             message = "确定要删除 $appToDeleteDisplayName 的所有配置吗？此操作将移除该应用及其所有规则。",
             onConfirm = {
-                appToDelete?.let { viewModel.deleteApp(it.id) }
+                viewModel.deleteApp(pending.packageName)
                 appToDelete = null
             },
             onDismiss = { appToDelete = null }
@@ -295,16 +295,16 @@ fun AppListScreen(
                         }
                     } else {
                         Box(modifier = modifier.fillMaxSize()) {
-                            val onToggleSelectionLambda: (Int) -> Unit = remember(selectionViewModel) { { id -> selectionViewModel.toggleSelection(id) } }
-                            val onSwipeRightLambda: (Int) -> Unit = remember(selectionViewModel) { { id -> selectionViewModel.enterSelectionMode(id) } }
-                            val onToggleAppLambda: (Int, Boolean) -> Unit = remember(viewModel) { { id, enabled -> viewModel.toggleAppEnabled(id, enabled) } }
+                            val onToggleSelectionLambda: (String) -> Unit = remember(selectionViewModel) { { pkg -> selectionViewModel.toggleSelection(pkg) } }
+                            val onSwipeRightLambda: (String) -> Unit = remember(selectionViewModel) { { pkg -> selectionViewModel.enterSelectionMode(pkg) } }
+                            val onToggleAppLambda: (String, Boolean) -> Unit = remember(viewModel) { { pkg, enabled -> viewModel.toggleAppEnabled(pkg, enabled) } }
                             val onEditNameLambda: (AppConfig) -> Unit = remember { { config -> appToEditName = config } }
                             val onDeleteAppLambda: (AppConfig) -> Unit = remember { { config -> appToDelete = config } }
                             val onEditRuleLambda: (AppConfig, Int) -> Unit = remember { { config, index -> ruleToEdit = Triple(config, index, config.rules[index]) } }
                             val onDeleteRuleLambda: (AppConfig, Int) -> Unit = remember { { config, index -> ruleToDelete = config to index } }
                             val onToggleRuleLambda: (AppConfig, Int) -> Unit = remember(viewModel) { { config, index ->
                                 val newEnabled = !config.rules[index].enabled
-                                viewModel.toggleRuleEnabled(config.id, index, newEnabled)
+                                viewModel.toggleRuleEnabled(config.packageName, index, newEnabled)
                             } }
 
                             LazyColumn(
@@ -315,14 +315,14 @@ fun AppListScreen(
                             ) {
                                 items(
                                     items = uiState,
-                                    key = { it.id },
+                                    key = { it.packageName },
                                     contentType = { "AppCard" }
                                 ) { app ->
                                     AppCard(
                                         app = app,
                                         displayName = viewModel.getDisplayName(app),
                                         isSelectionMode = selectionMode,
-                                        isSelected = app.id in selectedAppIds,
+                                        isSelected = app.packageName in selectedPackages,
                                         iconUpdateTrigger = iconCacheVersion,
                                         onToggleSelection = onToggleSelectionLambda,
                                         onSwipeRight = onSwipeRightLambda,

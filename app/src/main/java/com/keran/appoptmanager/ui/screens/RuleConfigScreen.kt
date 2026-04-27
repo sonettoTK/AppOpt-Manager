@@ -509,15 +509,15 @@ private fun ModernRuleCard(
             3 -> "${processName.trim()}:${threadName.trim()}"
             else -> "主进程"
         }
-        
+
         val newType = when (selectedType) {
             0 -> RuleType.MAIN
             1 -> RuleType.SUB
             2, 3 -> RuleType.THREAD
             else -> RuleType.MAIN
         }
-        
-        onUpdate(Rule(newTarget, newType, cores))
+
+        onUpdate(rule.copy(target = newTarget, type = newType, cores = cores))
     }
 
     Surface(
@@ -608,24 +608,18 @@ private fun ModernRuleCard(
             }
 
             val types = listOf("主进程", "子进程", "主线程", "子线程")
-            val hasOtherMainRule = false
-            
+
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     types.take(2).forEachIndexed { idx, label ->
                         val realIdx = idx
-                        val isMainProcessDisabled = realIdx == 0 && hasOtherMainRule && rule.type != RuleType.MAIN
-                        
                         ModernFilterChip(
                             selected = selectedType == realIdx,
-                            onClick = { 
-                                if (!isMainProcessDisabled) {
-                                    selectedType = realIdx
-                                    updateRule()
-                                }
+                            onClick = {
+                                selectedType = realIdx
+                                updateRule()
                             },
                             label = label,
-                            enabled = !isMainProcessDisabled,
                             modifier = Modifier.weight(1f)
                         )
                     }

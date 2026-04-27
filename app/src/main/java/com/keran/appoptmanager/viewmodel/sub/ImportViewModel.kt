@@ -217,14 +217,25 @@ class ImportViewModel(
         _importUiState.value = sortImportDiffs(diffs)
     }
 
-    fun applyImport(currentConfigs: List<AppConfig>, onConfigUpdated: (List<AppConfig>) -> Unit, onSaveConfig: () -> Unit) {
-        val currentList = currentConfigs
-        val currentMap = currentList.associateBy { it.packageName }.toMutableMap()
+    fun applyImport(
+        currentConfigs: List<AppConfig>,
+        selectedPackages: Set<String>,
+        onConfigUpdated: (List<AppConfig>) -> Unit,
+        onSaveConfig: () -> Unit
+    ) {
+        if (selectedPackages.isEmpty()) {
+            _importUiState.value = emptyList()
+            return
+        }
+
+        val currentMap = currentConfigs.associateBy { it.packageName }.toMutableMap()
 
         for (diff in _importUiState.value) {
-            val oldConfig = currentMap[diff.appConfig.packageName]
-            currentMap[diff.appConfig.packageName] = diff.appConfig.copy(
-                id = oldConfig?.id ?: ConfigParser.generateStableId(diff.appConfig.packageName),
+            val pkg = diff.appConfig.packageName
+            if (pkg !in selectedPackages) continue
+
+            val oldConfig = currentMap[pkg]
+            currentMap[pkg] = diff.appConfig.copy(
                 alias = oldConfig?.alias ?: diff.appConfig.alias
             )
         }

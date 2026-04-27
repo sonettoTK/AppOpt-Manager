@@ -55,9 +55,9 @@ fun AppCard(
     isSelectionMode: Boolean = false,
     isSelected: Boolean = false,
     iconUpdateTrigger: Int = 0,
-    onToggleSelection: (Int) -> Unit = {},
-    onSwipeRight: (Int) -> Unit = {},
-    onToggleApp: (Int, Boolean) -> Unit,
+    onToggleSelection: (String) -> Unit = {},
+    onSwipeRight: (String) -> Unit = {},
+    onToggleApp: (String, Boolean) -> Unit,
     onAddRule: (AppConfig) -> Unit,
     onEditName: (AppConfig) -> Unit,
     onDeleteApp: (AppConfig) -> Unit,
@@ -104,9 +104,9 @@ fun AppCard(
             .build()
     }
 
-    val swipeModifier = remember(app.id, isSelectionMode) {
+    val swipeModifier = remember(app.packageName, isSelectionMode) {
         if (!isSelectionMode) {
-            Modifier.pointerInput(app.id) {
+            Modifier.pointerInput(app.packageName) {
                 var totalDrag = 0f
                 detectHorizontalDragGestures(
                     onDragEnd = { totalDrag = 0f },
@@ -115,7 +115,7 @@ fun AppCard(
                     change.consume()
                     totalDrag += dragAmount
                     if (totalDrag > 300) {
-                        currentOnSwipeRight(app.id)
+                        currentOnSwipeRight(app.packageName)
                         totalDrag = 0f
                     }
                 }
@@ -140,7 +140,7 @@ fun AppCard(
                 indication = null
             ) {
                 if (isSelectionMode) {
-                    currentOnToggleSelection(app.id)
+                    currentOnToggleSelection(app.packageName)
                 } else {
                     expanded = !expanded
                 }
@@ -167,7 +167,7 @@ fun AppCard(
                 ) {
                     Checkbox(
                         checked = isSelected,
-                        onCheckedChange = { currentOnToggleSelection(app.id) },
+                        onCheckedChange = { currentOnToggleSelection(app.packageName) },
                         modifier = Modifier.padding(end = 8.dp)
                     )
                 }
@@ -257,7 +257,7 @@ fun AppCard(
                         val isAppEnabled = app.rules.isNotEmpty() && app.rules.any { it.enabled }
                         StatusToggleBtn(
                             checked = isAppEnabled,
-                            onCheckedChange = { currentOnToggleApp(app.id, !isAppEnabled) },
+                            onCheckedChange = { currentOnToggleApp(app.packageName, !isAppEnabled) },
                             size = 32.dp
                         )
                     }

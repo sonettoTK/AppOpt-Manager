@@ -1,56 +1,46 @@
 package com.keran.appoptmanager.viewmodel.sub
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 class SelectionViewModel : ViewModel() {
 
     private val _selectionMode = MutableStateFlow(false)
     val selectionMode: StateFlow<Boolean> = _selectionMode.asStateFlow()
 
-    private val _selectedAppIds = MutableStateFlow<Set<Int>>(emptySet())
-    val selectedAppIds: StateFlow<Set<Int>> = _selectedAppIds.asStateFlow()
+    private val _selectedPackages = MutableStateFlow<Set<String>>(emptySet())
+    val selectedPackages: StateFlow<Set<String>> = _selectedPackages.asStateFlow()
 
-    fun enterSelectionMode(initialId: Int? = null) {
+    fun enterSelectionMode(initialPackage: String? = null) {
         _selectionMode.value = true
-        _selectedAppIds.value = if (initialId != null) setOf(initialId) else emptySet()
+        _selectedPackages.value = if (initialPackage != null) setOf(initialPackage) else emptySet()
     }
 
     fun exitSelectionMode() {
         _selectionMode.value = false
-        _selectedAppIds.value = emptySet()
+        _selectedPackages.value = emptySet()
     }
 
-    fun toggleSelection(id: Int) {
-        _selectedAppIds.update { current ->
-            if (id in current) current - id else current + id
+    fun toggleSelection(packageName: String) {
+        _selectedPackages.update { current ->
+            if (packageName in current) current - packageName else current + packageName
         }
     }
-    
-    fun selectAll(visibleIds: Set<Int>) {
-        _selectedAppIds.value = visibleIds
+
+    fun selectAll(visiblePackages: Set<String>) {
+        _selectedPackages.value = visiblePackages
     }
-    
+
     fun deselectAll() {
-        _selectedAppIds.value = emptySet()
-    }
-    
-    fun invertSelection(visibleIds: Set<Int>) {
-        _selectedAppIds.value = visibleIds.symmetricDifference(_selectedAppIds.value)
+        _selectedPackages.value = emptySet()
     }
 
-    private fun <T> Set<T>.symmetricDifference(other: Set<T>): Set<T> {
-        return (this - other) + (other - this)
-    }
-
-    fun toggleApp(id: Int) {
-        _selectedAppIds.update { current ->
-            if (id in current) current - id else current + id
+    fun invertSelection(visiblePackages: Set<String>) {
+        _selectedPackages.update { current ->
+            (visiblePackages - current) + (current - visiblePackages)
         }
     }
 }

@@ -66,30 +66,46 @@ class UpdateRepository {
             val responseBody = service.downloadApk(url)
             val inputStream: InputStream = responseBody.byteStream()
             val totalBytes = responseBody.contentLength()
-            
+
+            if (totalBytes > MAX_APK_SIZE_BYTES) {
+                inputStream.close()
+                return Result.failure(IllegalStateException("APK size exceeds limit: $totalBytes bytes"))
+            }
+
             outputFile.parentFile?.mkdirs()
             if (outputFile.exists()) {
                 outputFile.delete()
             }
 
-            FileOutputStream(outputFile).use { outputStream ->
-                val buffer = ByteArray(8 * 1024)
-                var bytesRead: Int
-                var bytesCopied: Long = 0
-                
-                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                    outputStream.write(buffer, 0, bytesRead)
-                    bytesCopied += bytesRead
-                    if (totalBytes > 0) {
-                        onProgress(bytesCopied.toFloat() / totalBytes.toFloat())
+            inputStream.use { source ->
+                FileOutputStream(outputFile).use { outputStream ->
+                    val buffer = ByteArray(8 * 1024)
+                    var bytesRead: Int
+                    var bytesCopied: Long = 0
+
+                    while (source.read(buffer).also { bytesRead = it } != -1) {
+                        bytesCopied += bytesRead
+                        if (bytesCopied > MAX_APK_SIZE_BYTES) {
+                            outputStream.flush()
+                            outputFile.delete()
+                            return Result.failure(IllegalStateException("APK download exceeded limit"))
+                        }
+                        outputStream.write(buffer, 0, bytesRead)
+                        if (totalBytes > 0) {
+                            onProgress(bytesCopied.toFloat() / totalBytes.toFloat())
+                        }
                     }
+                    outputStream.flush()
                 }
-                outputStream.flush()
             }
             Result.success(outputFile)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
         }
+    }
+
+    private companion object {
+        const val MAX_APK_SIZE_BYTES: Long = 200L * 1024 * 1024
     }
 }
