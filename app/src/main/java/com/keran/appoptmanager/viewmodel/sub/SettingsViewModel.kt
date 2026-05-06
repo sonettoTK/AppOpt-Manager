@@ -1,18 +1,20 @@
 package com.keran.appoptmanager.viewmodel.sub
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.keran.appoptmanager.data.SettingsRepository
 import com.keran.appoptmanager.model.ToolbarItem
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class SettingsViewModel(
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
@@ -89,17 +91,6 @@ class SettingsViewModel(
     fun saveToolbarOrder() {
         viewModelScope.launch {
             settingsRepository.setToolbarOrder(_toolbarOrder.value.map { it.id })
-        }
-    }
-
-    companion object {
-        fun provideFactory(
-            settingsRepository: SettingsRepository
-        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return SettingsViewModel(settingsRepository) as T
-            }
         }
     }
 }

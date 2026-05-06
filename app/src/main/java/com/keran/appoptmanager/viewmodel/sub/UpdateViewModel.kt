@@ -1,25 +1,28 @@
 package com.keran.appoptmanager.viewmodel.sub
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.keran.appoptmanager.data.AppConfigRepository
 import com.keran.appoptmanager.data.UpdateRepository
 import com.keran.appoptmanager.model.UpdateInfo
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
+import javax.inject.Inject
 
-class UpdateViewModel(
+@HiltViewModel
+class UpdateViewModel @Inject constructor(
     private val updateRepository: UpdateRepository,
-    private val appConfigRepository: AppConfigRepository
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
@@ -34,7 +37,6 @@ class UpdateViewModel(
     private val _downloadProgress = MutableStateFlow(0f)
     val downloadProgress: StateFlow<Float> = _downloadProgress.asStateFlow()
 
-    /** 启动完成后调用，延迟 2 秒后检查更新，避免与启动争抢带宽 */
     fun onStartupCompleted() {
         viewModelScope.launch {
             delay(2000L)
@@ -51,7 +53,6 @@ class UpdateViewModel(
     }
 
     private fun handleUpdateInfo(info: UpdateInfo) {
-        val context = appConfigRepository.getContext()
         val currentVersion = runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull() ?: "0.0"
@@ -68,7 +69,6 @@ class UpdateViewModel(
         _downloadProgress.value = 0f
 
         viewModelScope.launch {
-            val context = appConfigRepository.getContext()
             val downloadDir = context.externalCacheDir ?: context.cacheDir
             val outputFile = File(downloadDir, "AppOptManager_v${info.versionName}.apk")
 
@@ -85,7 +85,6 @@ class UpdateViewModel(
     }
 
     private fun installApk(file: File) {
-        val context = appConfigRepository.getContext()
         val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             FileProvider.getUriForFile(
                 context,
@@ -126,17 +125,5 @@ class UpdateViewModel(
             if (newPart != currentPart) return newPart.compareTo(currentPart)
         }
         return 0
-    }
-
-    companion object {
-        fun provideFactory(
-            updateRepository: UpdateRepository,
-            appConfigRepository: AppConfigRepository
-        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return UpdateViewModel(updateRepository, appConfigRepository) as T
-            }
-        }
     }
 }

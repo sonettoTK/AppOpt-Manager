@@ -3,7 +3,6 @@ package com.keran.appoptmanager.viewmodel.sub
 import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.keran.appoptmanager.data.AppConfigRepository
 import com.keran.appoptmanager.data.ConfigParser
@@ -16,6 +15,7 @@ import com.keran.appoptmanager.model.RuleDiff
 import com.keran.appoptmanager.model.RuleType
 import com.keran.appoptmanager.utils.DeepLinkManager
 import com.keran.appoptmanager.utils.ZipUtils
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,8 +24,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class ImportViewModel(
+@HiltViewModel
+class ImportViewModel @Inject constructor(
     private val appConfigRepository: AppConfigRepository,
     private val installedAppRepository: InstalledAppRepository
 ) : ViewModel() {
@@ -36,10 +38,6 @@ class ImportViewModel(
     private val _importUiState = MutableStateFlow<List<ImportDiff>>(emptyList())
     val importUiState: StateFlow<List<ImportDiff>> = _importUiState.asStateFlow()
 
-    /**
-     * 当前配置缓存，用于导入时对比差异。
-     * 应在每次导入前由调用方更新。
-     */
     private var currentConfigsCache: List<AppConfig> = emptyList()
 
     fun setCurrentConfigs(configs: List<AppConfig>) {
@@ -252,18 +250,6 @@ class ImportViewModel(
 
     private fun emitToast(message: String) {
         viewModelScope.launch { _toastEvent.emit(message) }
-    }
-
-    companion object {
-        fun provideFactory(
-            appConfigRepository: AppConfigRepository,
-            installedAppRepository: InstalledAppRepository
-        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return ImportViewModel(appConfigRepository, installedAppRepository) as T
-            }
-        }
     }
 }
 
